@@ -27,8 +27,8 @@ public class MeteorMagic extends Magic {
                 MagicCategory.ATTACK,
                 List.of(
                         "<gray>Call a meteor from the sky.",
-                        "<red>Creates a massive explosion",
-                        "<red>on impact."
+                        "<gray>Creates a massive explosion",
+                        "<gray>on impact."
                 ),
                 CastType.RIGHT_CLICK,
                 10000L

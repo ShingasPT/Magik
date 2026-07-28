@@ -30,8 +30,8 @@ public class BlackHoleMagic extends Magic {
                 MagicCategory.ATTACK,
                 List.of(
                         "<gray>Summon a powerful black hole.",
-                        "<dark_gray>Pulls nearby enemies inward.",
-                        "<dark_gray>Consumes blocks and deals damage."
+                        "<gray>Pulls nearby enemies inward.",
+                        "<gray>Consumes blocks and deals damage."
                 ),
                 CastType.RIGHT_CLICK,
                 30000L
