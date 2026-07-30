@@ -97,8 +97,10 @@ public class MagicManager {
             }
         }
 
-        long cooldown = getRemainingCooldown(player, magic) / 1000;
-        lore.add(Mini.message("<red>Cooldown: <yellow>" + cooldown + " Seconds"));
+        long cooldownSeconds = magic.getCooldownMillis() / 1000;
+        lore.add(Mini.message(
+                "<red>Cooldown: <yellow>" + cooldownSeconds + " Seconds"
+        ));
 
         meta.lore(lore);
 

@@ -107,7 +107,7 @@ public class VoidRiftMagic extends Magic {
 
                 }
 
-                pullEntities(center, player);
+                pullEntities(center, player, ticks);
 
                 if (ticks % 12 == 0) {
 
@@ -129,37 +129,138 @@ public class VoidRiftMagic extends Magic {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void pullEntities(Location center, Player caster) {
+    private void pullEntities(
+            Location center,
+            Player caster,
+            int ticks
+    ) {
+        World world = center.getWorld();
 
-        for (Entity entity : center.getWorld().getNearbyEntities(center, PULL_RADIUS, PULL_RADIUS, PULL_RADIUS)) {
-
-            if (!(entity instanceof LivingEntity living))
-                continue;
-
-            if (living == caster)
-                continue;
-
-            Vector pull = center.toVector().subtract(living.getLocation().toVector());
-
-            double distance = pull.length();
-
-            if (distance < 0.75)
-                continue;
-
-            double strength = Math.min(
-                    0.4,
-                    0.08 + (PULL_RADIUS - distance) * 0.04
-            );
-
-            living.setVelocity(
-                    living.getVelocity().multiply(0.85)
-                            .add(
-                                    pull.normalize().multiply(strength)
-                            )
-            );
-
+        if (world == null) {
+            return;
         }
 
+        for (Entity entity : world.getNearbyEntities(
+                center,
+                PULL_RADIUS,
+                PULL_RADIUS,
+                PULL_RADIUS
+        )) {
+            if (!(entity instanceof LivingEntity living)) {
+                continue;
+            }
+
+            if (living == caster || !living.isValid() || living.isDead()) {
+                continue;
+            }
+
+            /*
+             * The visual rift center is around body height.
+             * Target the entity's feet slightly below it so players
+             * don't constantly get launched upward.
+             */
+            Location target = center.clone();
+            target.setY(center.getY() - living.getHeight() * 0.5);
+
+            Vector difference = target.toVector()
+                    .subtract(living.getLocation().toVector());
+
+            double distance = difference.length();
+
+            // getNearbyEntities uses a box, so enforce a real radius.
+            if (distance > PULL_RADIUS) {
+                continue;
+            }
+
+            /*
+             * Apply damage twice per second.
+             *
+             * Entities near the center take more damage.
+             * Twenty ticks = one second.
+             */
+            if (ticks % 10 == 0) {
+                double damage = distance <= 1.25
+                        ? 2.5
+                        : 1.25;
+
+                living.damage(damage, caster);
+            }
+
+            /*
+             * Keep pulling even when extremely close.
+             * Previously, the pull stopped at 0.75 blocks, allowing
+             * existing velocity to carry players through the center.
+             */
+            if (distance <= 0.45) {
+                Vector holdingVelocity = difference.multiply(0.18);
+
+                holdingVelocity.setY(clamp(
+                        holdingVelocity.getY(),
+                        -0.08,
+                        0.08
+                ));
+
+                living.setVelocity(holdingVelocity);
+                living.setFallDistance(0);
+                continue;
+            }
+
+            /*
+             * Stronger pull while far away and weaker near the center.
+             * This prevents the entity from rapidly overshooting.
+             */
+            double strength = Math.min(
+                    0.28,
+                    0.06 + distance * 0.035
+            );
+
+            Vector desiredVelocity = difference
+                    .normalize()
+                    .multiply(strength);
+
+            desiredVelocity.setY(clamp(
+                    desiredVelocity.getY(),
+                    -0.18,
+                    0.18
+            ));
+
+            Vector previousVelocity = living.getVelocity();
+
+            /*
+             * Preserve very little horizontal momentum.
+             * This removes most sideways/orbiting movement.
+             */
+            Vector finalVelocity = new Vector(
+                    previousVelocity.getX() * 0.10
+                            + desiredVelocity.getX(),
+
+                    previousVelocity.getY() * 0.20
+                            + desiredVelocity.getY(),
+
+                    previousVelocity.getZ() * 0.10
+                            + desiredVelocity.getZ()
+            );
+
+            // Prevent excessively fast movement toward the rift.
+            double maximumSpeed = 0.35;
+
+            if (finalVelocity.lengthSquared()
+                    > maximumSpeed * maximumSpeed) {
+
+                finalVelocity.normalize().multiply(maximumSpeed);
+            }
+
+            living.setVelocity(finalVelocity);
+            living.setFallDistance(0);
+        }
+    }
+
+    private double clamp(
+            double value,
+            double minimum,
+            double maximum
+    ) {
+        return Math.max(minimum, Math.min(maximum, value));
     }
 
     private void drawRift(

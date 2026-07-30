@@ -41,29 +41,55 @@ public class BeamMagic extends Magic {
         Vector dir = loc.getDirection().normalize();
 
         World world = player.getWorld();
-
         int maxDistance = 50;
+
+        // Must exist for the entire beam, not each individual position.
+        Set<Entity> alreadyHit = new HashSet<>();
+
         for (int i = 0; i < maxDistance; i++) {
+            loc.add(dir);
 
-            loc = loc.add(dir);
+            world.spawnParticle(
+                    Particle.SONIC_BOOM,
+                    loc,
+                    1
+            );
 
-            // Sonic boom particle
-            world.spawnParticle(Particle.SONIC_BOOM, loc, 1);
-            if (!loc.getBlock().getType().isAir()) break;
+            if (!loc.getBlock().getType().isAir()) {
+                break;
+            }
 
-            // Kill entities near beam
-            Set<Entity> alreadyHit = new HashSet<>();
-            Collection<Entity> entities = loc.getNearbyEntities(1, 1, 1);
-            for (Entity ent : entities) {
-                if (ent instanceof LivingEntity le && ent != player && !alreadyHit.contains(ent)) {
-                    le.setHealth(0);
-                    alreadyHit.add(ent);
+            Collection<Entity> entities =
+                    loc.getNearbyEntities(1, 1, 1);
+
+            for (Entity entity : entities) {
+                if (!(entity instanceof LivingEntity living)) {
+                    continue;
                 }
+
+                if (entity == player) {
+                    continue;
+                }
+
+                if (living.isDead() || !living.isValid()) {
+                    continue;
+                }
+
+                // add() returns false if the entity was already hit.
+                if (!alreadyHit.add(entity)) {
+                    continue;
+                }
+
+                living.setHealth(0);
             }
         }
 
-        // Sound
-        world.playSound(player.getLocation(), Sound.ENTITY_WARDEN_SONIC_BOOM, 1f, 1f);
+        world.playSound(
+                player.getLocation(),
+                Sound.ENTITY_WARDEN_SONIC_BOOM,
+                1f,
+                1f
+        );
     }
 
 }

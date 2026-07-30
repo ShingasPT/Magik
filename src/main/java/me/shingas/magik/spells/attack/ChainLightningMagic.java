@@ -11,6 +11,7 @@ import org.bukkit.entity.LightningStrike;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.HashSet;
@@ -46,102 +47,117 @@ public class ChainLightningMagic extends Magic {
     public void cast(MagicContext context) {
         Player player = context.getPlayer();
         this.plugin = context.getPlugin();
+
         LivingEntity first = getTarget(player);
 
-        if (first == null) {
+        if (first == null || !first.isValid() || first.isDead()) {
             return;
         }
 
         World world = player.getWorld();
 
         // Real lightning only on the first target
-        LightningStrike strike = world.strikeLightning(first.getLocation());
+        LightningStrike lightningStrike =
+                world.strikeLightning(first.getLocation());
 
-        context.getStormManager().registerLightning(strike, player);
+        context.getStormManager().registerLightning(
+                lightningStrike,
+                player
+        );
 
         strike(first.getLocation());
-
-        // Damage first target
         first.damage(START_DAMAGE, player);
 
-        // Begin chaining after a short delay
         new BukkitRunnable() {
 
-            LivingEntity current = first;
-            final Set<UUID> hit = new HashSet<>();
-            double damage = START_DAMAGE * 0.8;
-            int jumps = 1;
+            private LivingEntity current = first;
+            private final Set<UUID> hit = new HashSet<>();
+
+            private double damage = START_DAMAGE * 0.8;
+            private int jumps = 1;
+            private boolean animating = false;
 
             @Override
             public void run() {
+                // Wait until the current lightning animation finishes
+                if (animating) {
+                    return;
+                }
 
-                hit.add(current.getUniqueId());
-
-                LivingEntity next = findNextTarget(current, hit, player);
-
-                if (next == null || jumps >= MAX_JUMPS) {
+                if (!player.isOnline()) {
                     cancel();
                     return;
                 }
 
-                drawLightning(
-                        current.getEyeLocation(),
-                        next.getEyeLocation(),
-                        () -> {
-                            next.damage(damage, player);
-                            strike(next.getLocation());
+                if (current == null
+                        || !current.isValid()
+                        || current.isDead()) {
 
-                            current = next;
-                            damage *= 0.8;
-                            jumps++;
-                        });
+                    cancel();
+                    return;
+                }
 
+                // The current target has already been struck
+                hit.add(current.getUniqueId());
+
+                if (jumps >= MAX_JUMPS) {
+                    cancel();
+                    return;
+                }
+
+                LivingEntity next =
+                        findNextTarget(current, hit, player);
+
+                if (next == null) {
+                    cancel();
+                    return;
+                }
+
+                // Reserve the target immediately so it cannot be selected twice
+                hit.add(next.getUniqueId());
+                animating = true;
+
+                Location from = current.getEyeLocation();
+                Location to = next.getEyeLocation();
+
+                drawLightning(from, to, () -> {
+                    if (next.isValid() && !next.isDead()) {
+                        next.damage(damage, player);
+                        strike(next.getLocation());
+                    }
+
+                    current = next;
+                    damage *= 0.8;
+                    jumps++;
+                    animating = false;
+                });
             }
 
-        }.runTaskTimer(plugin, 5L, 5L);
+        }.runTaskTimer(plugin, 5L, 1L);
     }
 
     private LivingEntity getTarget(Player player) {
-
-        List<Entity> nearby = player.getNearbyEntities(
-                MAX_DISTANCE,
-                MAX_DISTANCE,
-                MAX_DISTANCE
-        );
-
-        LivingEntity closest = null;
-        double bestDot = 0.98;
-
         Location eye = player.getEyeLocation();
 
-        for (Entity entity : nearby) {
+        RayTraceResult result = player.getWorld().rayTrace(
+                eye,
+                eye.getDirection(),
+                MAX_DISTANCE,
+                FluidCollisionMode.NEVER,
+                true,
+                0.75,
+                entity -> entity instanceof LivingEntity && entity != player
+        );
 
-            if (!(entity instanceof LivingEntity living))
-                continue;
-
-            if (living == player)
-                continue;
-
-            Location target = living.getEyeLocation();
-
-            var direction = target.toVector()
-                    .subtract(eye.toVector())
-                    .normalize();
-
-            double dot = direction.dot(eye.getDirection());
-
-            if (dot > bestDot) {
-
-                if (eye.distanceSquared(target)
-                        <= MAX_DISTANCE * MAX_DISTANCE) {
-
-                    bestDot = dot;
-                    closest = living;
-                }
-            }
+        if (result == null) {
+            return null;
         }
 
-        return closest;
+        if (result.getHitEntity() instanceof LivingEntity living) {
+            return living;
+        }
+
+        return null;
     }
 
     /**
