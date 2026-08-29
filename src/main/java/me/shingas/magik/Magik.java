@@ -8,6 +8,8 @@ import me.shingas.magik.listeners.StormListener;
 import me.shingas.magik.managers.MagicManager;
 import me.shingas.magik.managers.StormManager;
 import me.shingas.magik.spells.attack.*;
+import me.shingas.magik.spells.attack.FireballMagic.FireballListener;
+import me.shingas.magik.spells.attack.FireballMagic.FireballMagic;
 import me.shingas.magik.spells.attack.OrbitalMagic.OrbitalMagic;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -30,6 +32,11 @@ public final class Magik extends JavaPlugin {
         magicManager.register(new OrbitalMagic());
         magicManager.register(new StormMagic());
         magicManager.register(new VoidRiftMagic());
+
+        getServer().getPluginManager().registerEvents(
+                new FireballListener(this),
+                this
+        );
 
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             event.registrar().register("magik", new MagicCommand(magicManager));

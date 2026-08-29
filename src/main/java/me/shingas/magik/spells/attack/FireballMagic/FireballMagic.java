@@ -1,4 +1,4 @@
-package me.shingas.magik.spells.attack;
+package me.shingas.magik.spells.attack.FireballMagic;
 
 import me.shingas.magik.Magik;
 import me.shingas.magik.magic.CastType;
@@ -7,13 +7,17 @@ import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.magic.MagicContext;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Fireball;
 import org.bukkit.entity.Player;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 import java.util.List;
 
 public class FireballMagic extends Magic {
+
+    private Magik magik;
 
     public FireballMagic() {
         super(
@@ -38,6 +42,13 @@ public class FireballMagic extends Magic {
 
         // Spawn fireball
         Fireball fireball = player.getWorld().spawn(eye, Fireball.class);
+
+        magik = context.getPlugin();
+        fireball.getPersistentDataContainer().set(
+                new NamespacedKey(magik, "magic_fireball"),
+                PersistentDataType.BYTE,
+                (byte) 1
+        );
 
         // Set direction (forward)
         Vector direction = eye.getDirection().normalize();
