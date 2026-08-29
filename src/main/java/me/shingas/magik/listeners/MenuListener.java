@@ -5,6 +5,7 @@ import me.shingas.magik.gui.MagicMenu;
 import me.shingas.magik.magic.Magic;
 import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.managers.MagicManager;
+import me.shingas.magik.utils.Mini;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -42,14 +43,33 @@ public class MenuListener implements Listener {
         }
     }
 
-    private void handleCategoryClick(Player player, InventoryClickEvent event) {
+    private void handleCategoryClick(
+            Player player,
+            InventoryClickEvent event
+    ) {
+
         switch (event.getRawSlot()) {
+
             case 11 ->
-                    new MagicMenu(manager, MagicCategory.ATTACK).open(player);
+                    new MagicMenu(
+                            manager,
+                            MagicCategory.ATTACK,
+                            player
+                    ).open(player);
+
             case 13 ->
-                    new MagicMenu(manager, MagicCategory.SUPPORT).open(player);
+                    new MagicMenu(
+                            manager,
+                            MagicCategory.SUPPORT,
+                            player
+                    ).open(player);
+
             case 15 ->
-                    new MagicMenu(manager, MagicCategory.UTILITY).open(player);
+                    new MagicMenu(
+                            manager,
+                            MagicCategory.UTILITY,
+                            player
+                    ).open(player);
         }
     }
 
@@ -62,9 +82,23 @@ public class MenuListener implements Listener {
             return;
         }
 
-        Magic magic = menu.getMagic(event.getRawSlot());
+        Magic magic =
+                menu.getMagic(event.getRawSlot());
 
-        if (magic == null) return;
+        if (magic == null)
+            return;
+
+        if (!manager.canUseMagic(player, magic)) {
+
+            player.sendMessage(
+                    Mini.message(
+                            "<red>You have not unlocked this magic."
+                    )
+            );
+
+            player.closeInventory();
+            return;
+        }
 
         manager.applyMagic(player, magic);
     }

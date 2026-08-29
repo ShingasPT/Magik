@@ -23,17 +23,25 @@ public class MagicMenu implements InventoryHolder {
     private final Map<Integer, Magic> magicSlots = new HashMap<>();
     public static final int BACK_SLOT = 49;
 
-    public MagicMenu(MagicManager manager, MagicCategory category) {
+    public MagicMenu(
+            MagicManager manager,
+            MagicCategory category,
+            Player player
+    ) {
         this.manager = manager;
         this.category = category;
 
         inventory = Bukkit.createInventory(
                 this,
                 54,
-                Mini.message("<dark_purple>" + category.name() + " Magic")
+                Mini.message(
+                        "<dark_purple>"
+                                + category.name()
+                                + " Magic"
+                )
         );
 
-        initializeItems();
+        initializeItems(player);
     }
 
     @Override
@@ -45,29 +53,35 @@ public class MagicMenu implements InventoryHolder {
         player.openInventory(inventory);
     }
 
-    private void initializeItems() {
+    private void initializeItems(Player player) {
 
         int slot = 0;
 
-        for (Magic magic : manager.getByCategory(category)) {
+        for (Magic magic :
+                manager.getByCategory(player, category)) {
 
-            inventory.setItem(slot,
+            inventory.setItem(
+                    slot,
                     new ItemBuilder(magic.getIcon())
                             .name("<gold>" + magic.getName())
                             .lore(magic.getDescription())
-                            .build());
+                            .build()
+            );
 
             magicSlots.put(slot, magic);
 
             slot++;
         }
 
-        inventory.setItem(BACK_SLOT,
+        inventory.setItem(
+                BACK_SLOT,
                 new ItemBuilder(Material.ARROW)
                         .name("<red>Return")
-                        .lore(List.of("<gray>Return to the categories menu"))
-                        .build());
-
+                        .lore(List.of(
+                                "<gray>Return to the categories menu"
+                        ))
+                        .build()
+        );
     }
 
     public Magic getMagic(int slot) {

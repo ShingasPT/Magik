@@ -1,5 +1,6 @@
 package me.shingas.magik.managers;
 
+import com.nexomc.nexo.api.NexoItems;
 import me.shingas.magik.Magik;
 import me.shingas.magik.magic.CastTrigger;
 import me.shingas.magik.magic.Magic;
@@ -26,6 +27,14 @@ public class MagicManager {
     // playerId -> (magicId -> timestamp the cooldown expires, in millis)
     private final Map<UUID, Map<String, Long>> cooldowns = new HashMap<>();
     private final NamespacedKey magicKey;
+
+    private static final String WAND_NEXO_ID = "wizard_wand";
+    private static final int WAND_CUSTOM_MODEL_DATA = 1438;
+
+    private static final Set<String> WIZARD_DEFAULT_MAGICS = Set.of(
+            "fireball",
+            "icespear"
+    );
 
     public MagicManager(Magik plugin, StormManager stormManager) {
         this.plugin = plugin;
@@ -68,39 +77,84 @@ public class MagicManager {
         ItemStack item = player.getInventory().getItemInMainHand();
 
         if (item.getType().isAir()) {
-            player.getOpenInventory().close();
-            player.sendMessage(Mini.message("<red>You must be holding an item."));
+            player.closeInventory();
+            player.sendMessage(Mini.message(
+                    "<red>You must be holding your magic wand."
+            ));
+            return;
+        }
+
+        if (!isWizardWand(item)) {
+            player.closeInventory();
+            player.sendMessage(Mini.message(
+                    "<red>You can only apply magic to a Wizard Wand."
+            ));
             return;
         }
 
         ItemMeta meta = item.getItemMeta();
 
-        meta.displayName(Mini.message("<gold>" + magic.getName() + " Magic"));
-        List<Component> lore = magic.getDescription()
-                .stream()
-                .map(Mini::message)
-                .collect(Collectors.toList());
+        List<Component> lore = new ArrayList<>();
+
+        lore.add(
+                Mini.message(
+                        "<light_purple>Selected Magic: <gold>"
+                                + magic.getName()
+                )
+        );
+
+        lore.add(Component.empty());
+
+        lore.addAll(
+                magic.getDescription()
+                        .stream()
+                        .map(Mini::message)
+                        .toList()
+        );
 
         lore.add(Component.empty());
 
         switch (magic.getCastType()) {
 
             case RIGHT_CLICK ->
-                    lore.add(Mini.message("<yellow>▶ Right Click <gray>to cast"));
+                    lore.add(
+                            Mini.message(
+                                    "<yellow>▶ Right Click <gray>to cast"
+                            )
+                    );
 
             case LEFT_CLICK ->
-                    lore.add(Mini.message("<yellow>▶ Left Click <gray>to cast"));
+                    lore.add(
+                            Mini.message(
+                                    "<yellow>▶ Left Click <gray>to cast"
+                            )
+                    );
 
             case BOTH -> {
-                lore.add(Mini.message("<yellow>▶ Right Click <gray>to cast on yourself"));
-                lore.add(Mini.message("<yellow>▶ Left Click <gray>to cast on others"));
+                lore.add(
+                        Mini.message(
+                                "<yellow>▶ Right Click <gray>to cast on yourself"
+                        )
+                );
+
+                lore.add(
+                        Mini.message(
+                                "<yellow>▶ Left Click <gray>to cast on others"
+                        )
+                );
             }
         }
 
-        long cooldownSeconds = magic.getCooldownMillis() / 1000;
-        lore.add(Mini.message(
-                "<red>Cooldown: <yellow>" + cooldownSeconds + " Seconds"
-        ));
+        long cooldownSeconds =
+                magic.getCooldownMillis() / 1000;
+
+        lore.add(
+                Mini.message(
+                        "<red>Cooldown: <yellow>"
+                                + cooldownSeconds
+                                + " Seconds"
+                )
+        );
 
         meta.lore(lore);
 
@@ -114,9 +168,22 @@ public class MagicManager {
 
         player.closeInventory();
 
-        player.sendMessage(Mini.message(
-                "<green>Applied <gold>" + magic.getName() + " Magic<green> to your item!"
-        ));
+        player.sendMessage(
+                Mini.message(
+                        "<green>Selected <gold>"
+                                + magic.getName()
+                                + " Magic<green>!"
+                )
+        );
+    }
+
+    private boolean isWizardWand(ItemStack item) {
+
+        if (item == null || item.getType().isAir())
+            return false;
+
+        return WAND_NEXO_ID.equals(NexoItems.idFromItem(item)
+        );
     }
 
     /**
@@ -172,6 +239,36 @@ public class MagicManager {
             playerCooldowns.remove(magic.getId());
     }
 
+    public boolean canUseMagic(Player player, Magic magic) {
+
+        // Admins can use everything.
+        if (player.isOp()) {
+            return true;
+        }
+
+        // Player must be a Wizard to use the Magik system.
+        if (!player.hasPermission("magik.wizard")) {
+            return false;
+        }
+
+        // Every Wizard automatically knows these.
+        if (WIZARD_DEFAULT_MAGICS.contains(magic.getId())) {
+            return true;
+        }
+
+        // Everything else has to be learned/unlocked.
+        return player.hasPermission(
+                "magik.spell." + magic.getId()
+        );
+    }
+
+    public List<Magic> getByCategory(Player player, MagicCategory category) {
+        return magics.values().stream()
+                .filter(magic -> magic.getCategory() == category)
+                .filter(magic -> canUseMagic(player, magic))
+                .toList();
+    }
+
     public void castHeldMagic(Player player, CastTrigger trigger) {
 
         ItemStack item = player.getInventory().getItemInMainHand();
@@ -181,6 +278,17 @@ public class MagicManager {
 
         if (!item.hasItemMeta())
             return;
+
+        if (!player.isOp() && !player.hasPermission("magik.wizard")) {
+            return;
+        }
+
+        if (!isWizardWand(item)) {
+            player.sendMessage(Mini.message(
+                    "<red>You can only use magic with a Wizard Wand."
+            ));
+            return;
+        }
 
         ItemMeta meta = item.getItemMeta();
 
