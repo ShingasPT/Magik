@@ -42,7 +42,7 @@ public class IceSpearMagic extends Magic {
                         "<gray>impales your target."
                 ),
                 CastType.RIGHT_CLICK,
-                5000L
+                20000L
         );
     }
 

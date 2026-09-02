@@ -283,13 +283,6 @@ public class MagicManager {
             return;
         }
 
-        if (!isWizardWand(item)) {
-            player.sendMessage(Mini.message(
-                    "<red>You can only use magic with a Wizard Wand."
-            ));
-            return;
-        }
-
         ItemMeta meta = item.getItemMeta();
 
         String id = meta.getPersistentDataContainer().get(

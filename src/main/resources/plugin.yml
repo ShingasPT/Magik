@@ -1,8 +1,7 @@
 name: Magik
 version: '${version}'
-
 main: me.shingas.magik.Magik
-api-version: '1.21.11'
+api-version: '26.2'
 load: POSTWORLD
 depend:
   - Nexo

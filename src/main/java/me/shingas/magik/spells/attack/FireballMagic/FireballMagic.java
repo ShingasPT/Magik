@@ -31,7 +31,7 @@ public class FireballMagic extends Magic {
                         "<gray>and engulfs foes in flames."
                 ),
                 CastType.RIGHT_CLICK,
-                5000L
+                20000L
         );
     }
 
@@ -55,7 +55,7 @@ public class FireballMagic extends Magic {
         fireball.setDirection(direction);
 
         // Optional tweaks
-        fireball.setYield(3); // explosion power
+        fireball.setYield(1); // explosion power
         fireball.setIsIncendiary(false); // fire on impact
         fireball.setShooter(player);
 
