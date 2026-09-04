@@ -55,7 +55,7 @@ public class FireballMagic extends Magic {
         fireball.setDirection(direction);
 
         // Optional tweaks
-        fireball.setYield(1); // explosion power
+        fireball.setYield(2); // explosion power
         fireball.setIsIncendiary(false); // fire on impact
         fireball.setShooter(player);
 

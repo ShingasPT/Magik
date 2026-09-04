@@ -14,22 +14,24 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class MagicManager {
 
     private final Magik plugin;
     private final StormManager stormManager;
 
-    private final Map<String, Magic> magics = new HashMap<>();
-    private final Map<UUID, Magic> selectedMagic = new HashMap<>();
-    // playerId -> (magicId -> timestamp the cooldown expires, in millis)
+    private final Map<String, Magic> magics = new LinkedHashMap<>();
     private final Map<UUID, Map<String, Long>> cooldowns = new HashMap<>();
     private final NamespacedKey magicKey;
 
     private static final String WAND_NEXO_ID = "wizard_wand";
-    private static final int WAND_CUSTOM_MODEL_DATA = 1438;
 
     private static final Set<String> WIZARD_DEFAULT_MAGICS = Set.of(
             "fireball",
@@ -48,28 +50,6 @@ public class MagicManager {
 
     public Magic getMagic(String id) {
         return magics.get(id);
-    }
-
-    public Collection<Magic> getMagics() {
-        return magics.values();
-    }
-
-    public List<Magic> getByCategory(MagicCategory category) {
-        return magics.values().stream()
-                .filter(m -> m.getCategory() == category)
-                .toList();
-    }
-
-    public NamespacedKey getMagicKey() {
-        return magicKey;
-    }
-
-    public void selectMagic(Player player, Magic magic) {
-        selectedMagic.put(player.getUniqueId(), magic);
-    }
-
-    public Magic getSelectedMagic(Player player) {
-        return selectedMagic.get(player.getUniqueId());
     }
 
     public void applyMagic(Player player, Magic magic) {
@@ -207,7 +187,15 @@ public class MagicManager {
 
         long remaining = expiresAt - System.currentTimeMillis();
 
-        return Math.max(remaining, 0);
+        if (remaining <= 0) {
+            playerCooldowns.remove(magic.getId());
+            if (playerCooldowns.isEmpty()) {
+                cooldowns.remove(player.getUniqueId());
+            }
+            return 0;
+        }
+
+        return remaining;
     }
 
     public boolean isOnCooldown(Player player, Magic magic) {
@@ -226,17 +214,6 @@ public class MagicManager {
         cooldowns
                 .computeIfAbsent(player.getUniqueId(), id -> new HashMap<>())
                 .put(magic.getId(), System.currentTimeMillis() + magic.getCooldownMillis());
-    }
-
-    /**
-     * Clears any active cooldown for {@code magic} for {@code player}.
-     */
-    public void clearCooldown(Player player, Magic magic) {
-
-        Map<String, Long> playerCooldowns = cooldowns.get(player.getUniqueId());
-
-        if (playerCooldowns != null)
-            playerCooldowns.remove(magic.getId());
     }
 
     public boolean canUseMagic(Player player, Magic magic) {
@@ -276,12 +253,11 @@ public class MagicManager {
         if (item.getType().isAir())
             return;
 
-        if (!item.hasItemMeta())
+        if (!isWizardWand(item))
             return;
 
-        if (!player.isOp() && !player.hasPermission("magik.wizard")) {
+        if (!item.hasItemMeta())
             return;
-        }
 
         ItemMeta meta = item.getItemMeta();
 
@@ -296,6 +272,9 @@ public class MagicManager {
         Magic magic = getMagic(id);
 
         if (magic == null)
+            return;
+
+        if (!canUseMagic(player, magic))
             return;
 
         if (!magic.getCastType().allows(trigger)) {
