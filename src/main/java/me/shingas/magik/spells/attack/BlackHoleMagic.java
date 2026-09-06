@@ -53,17 +53,22 @@ public class BlackHoleMagic extends Magic {
             this.angle = Math.random() * 2 * Math.PI;
         }
 
-        void tick() {
+        void tick(Magik plugin) {
             angle += 0.1; // rotation speed
             radius = Math.max(0, radius - 0.05); // spiral inward
             Location loc = center.clone();
             loc.add(Math.cos(angle) * radius, heightOffset, Math.sin(angle) * radius);
-            display.teleport(loc);
+            display.getScheduler().run(plugin, task -> {
+                if (!display.isValid()) {
+                    return;
+                }
 
-            // remove if very close to center
-            if (radius < 0.1) {
-                display.remove();
-            }
+                display.teleport(loc);
+
+                if (radius < 0.1) {
+                    display.remove();
+                }
+            }, null);
         }
 
         boolean isDead() {
@@ -94,7 +99,8 @@ public class BlackHoleMagic extends Magic {
             @Override
             public void run() {
                 if (ticks >= durationTicks) {
-                    orbitingBlocks.forEach(b -> b.display.remove());
+                    orbitingBlocks.forEach(b ->
+                            b.display.getScheduler().run(plugin, task -> b.display.remove(), null));
                     this.cancel();
                     return;
                 }
@@ -148,7 +154,7 @@ public class BlackHoleMagic extends Magic {
 
                 // Tick orbiting blocks
                 orbitingBlocks.removeIf(ob -> {
-                    ob.tick();
+                    ob.tick(plugin);
                     return ob.isDead();
                 });
 

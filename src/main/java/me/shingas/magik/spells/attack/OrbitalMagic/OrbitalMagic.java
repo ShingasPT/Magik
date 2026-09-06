@@ -890,7 +890,7 @@ public class OrbitalMagic extends Magic {
                         return;
                     }
                     if (falling.isOnGround()) {
-                        falling.remove();
+                        falling.getScheduler().run(plugin, task -> falling.remove(), null);
                         cancel();
                     }
                 }

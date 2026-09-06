@@ -13,7 +13,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.joml.AxisAngle4f;
@@ -86,48 +85,49 @@ public class IceSpearMagic extends Magic {
                 0.6f
         );
 
-        new BukkitRunnable() {
+        double[] travelled = {0};
+        display.getScheduler().runAtFixedRate(plugin, task -> {
 
-            double travelled = 0;
+            if (travelled[0] >= MAX_DISTANCE) {
+                shatter(spear);
+                display.remove();
+                task.cancel();
+                return;
+            }
 
-            @Override
-            public void run() {
+            spear.add(direction.clone().multiply(SPEED));
+            travelled[0] += SPEED;
 
-                if (travelled >= MAX_DISTANCE) {
-                    shatter(spear);
-                    display.remove();
-                    cancel();
-                    return;
-                }
+            Location displayLoc = spear.clone().add(direction.clone().multiply(0.5));
 
-                spear.add(direction.clone().multiply(SPEED));
-                travelled += SPEED;
+            displayLoc.setDirection(direction);
 
-                Location displayLoc = spear.clone().add(direction.clone().multiply(0.5));
+            display.teleport(displayLoc);
 
-                displayLoc.setDirection(direction);
+            if (!spear.getBlock().isPassable()) {
+                shatter(spear);
+                display.remove();
+                task.cancel();
+                return;
+            }
 
-                display.teleport(displayLoc);
+            spawnTrail(spear);
 
-                if (!spear.getBlock().isPassable()) {
-                    shatter(spear);
-                    display.remove();
-                    cancel();
-                    return;
-                }
+            for (Entity entity : world.getNearbyEntities(spear, 1, 1, 1)) {
 
-                spawnTrail(spear);
+                if (!(entity instanceof LivingEntity living))
+                    continue;
 
-                for (Entity entity : world.getNearbyEntities(spear, 1, 1, 1)) {
+                if (living == player)
+                    continue;
 
-                    if (!(entity instanceof LivingEntity living))
-                        continue;
+                if (!hit.add(living.getUniqueId()))
+                    continue;
 
-                    if (living == player)
-                        continue;
-
-                    if (!hit.add(living.getUniqueId()))
-                        continue;
+                living.getScheduler().run(plugin, targetTask -> {
+                    if (!living.isValid() || living.isDead()) {
+                        return;
+                    }
 
                     living.damage(DAMAGE, player);
 
@@ -153,11 +153,10 @@ public class IceSpearMagic extends Magic {
                             .3,.4,.3,
                             Material.PACKED_ICE.createBlockData()
                     );
-                }
-
+                }, null);
             }
 
-        }.runTaskTimer(plugin,0,1);
+        }, null, 1L, 1L);
     }
 
     private void spawnTrail(Location loc) {
