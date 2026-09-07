@@ -6,14 +6,15 @@ import me.shingas.magik.magic.Magic;
 import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.magic.MagicContext;
 import me.shingas.magik.managers.StormManager;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.LightningStrike;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class StormMagic extends Magic {
@@ -44,39 +45,27 @@ public class StormMagic extends Magic {
 
         double radius = 15;
         int duration = 200;
+        Location center = player.getLocation().clone();
+        UUID casterId = player.getUniqueId();
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
 
-        new BukkitRunnable() {
-
-            int ticks = 0;
-
-            @Override
-            public void run() {
-
-                if (ticks >= duration) {
-                    cancel();
-                    return;
-                }
-
-                Location strikeLoc = player.getLocation().clone();
-
-                strikeLoc.add(
-                        random.nextDouble(-radius, radius),
-                        0,
-                        random.nextDouble(-radius, radius)
-                );
-
-                strikeLoc.setY(world.getHighestBlockYAt(strikeLoc));
-
-                LightningStrike strike = world.strikeLightning(strikeLoc);
-
-                storm.registerLightning(strike, player);
-
-                ticks += 10;
+        final int[] ticks = {0};
+        Bukkit.getRegionScheduler().runAtFixedRate(plugin, center, task -> {
+            if (ticks[0] >= duration) {
+                task.cancel();
+                return;
             }
 
-        }.runTaskTimer(plugin, 0L, 10L);
+            Location strikeLoc = center.clone();
+            strikeLoc.add(random.nextDouble(-radius, radius), 0, random.nextDouble(-radius, radius));
+            Bukkit.getRegionScheduler().run(plugin, strikeLoc, strikeTask -> {
+                strikeLoc.setY(world.getHighestBlockYAt(strikeLoc));
+                LightningStrike strike = world.strikeLightning(strikeLoc);
+                storm.registerLightning(strike, casterId);
+            });
+            ticks[0] += 10;
+        }, 0L, 10L);
     }
 
 }

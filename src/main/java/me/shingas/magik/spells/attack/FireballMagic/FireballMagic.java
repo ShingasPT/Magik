@@ -31,7 +31,7 @@ public class FireballMagic extends Magic {
                         "<gray>and engulfs foes in flames."
                 ),
                 CastType.RIGHT_CLICK,
-                20000L
+                5000L
         );
     }
 

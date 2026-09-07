@@ -5,6 +5,7 @@ import me.shingas.magik.magic.CastType;
 import me.shingas.magik.magic.Magic;
 import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.magic.MagicContext;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -12,7 +13,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Fireball;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.List;
@@ -61,33 +61,26 @@ public class MeteorMagic extends Magic {
         Vector velocity = target.toVector().subtract(start.toVector()).normalize().multiply(1.5);
         meteor.setVelocity(velocity);
 
-        // Particle trail to make it look like a meteor
-        new BukkitRunnable() {
-            int ticks = 0;
-            @Override
-            public void run() {
-                if (meteor.isDead() || ticks > 200) {
-                    this.cancel();
-                    return;
-                }
-
-                world.spawnParticle(Particle.FLAME, meteor.getLocation(), 5, 0.5, 0.5, 0.5, 0);
-                world.spawnParticle(Particle.LAVA, meteor.getLocation(), 3, 0.5, 0.5, 0.5, 0);
-
-                ticks++;
+        // The meteor remains in the target chunk, so run all follow-up work there.
+        final int[] ticks = {0};
+        Bukkit.getRegionScheduler().runAtFixedRate(plugin, target, task -> {
+            if (meteor.isDead()) {
+                Location impact = meteor.getLocation();
+                world.createExplosion(impact, 10F, true, true, null);
+                world.spawnParticle(Particle.EXPLOSION, impact, 1);
+                task.cancel();
+                return;
             }
-        }.runTaskTimer(plugin, 0L, 1L);
 
-        // Explosion on impact
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (meteor.isDead()) {
-                    world.createExplosion(meteor.getLocation(), 10F, true, true, null);
-                    world.spawnParticle(Particle.EXPLOSION, meteor.getLocation(), 1);
-                    this.cancel();
-                }
+            if (ticks[0] >= 200) {
+                meteor.remove();
+                task.cancel();
+                return;
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+
+            world.spawnParticle(Particle.FLAME, meteor.getLocation(), 5, 0.5, 0.5, 0.5, 0);
+            world.spawnParticle(Particle.LAVA, meteor.getLocation(), 3, 0.5, 0.5, 0.5, 0);
+            ticks[0]++;
+        }, 0L, 1L);
     }
 }

@@ -5,6 +5,7 @@ import me.shingas.magik.magic.CastType;
 import me.shingas.magik.magic.Magic;
 import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.magic.MagicContext;
+import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -14,7 +15,6 @@ import org.bukkit.block.Block;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
@@ -53,22 +53,20 @@ public class BlackHoleMagic extends Magic {
             this.angle = Math.random() * 2 * Math.PI;
         }
 
-        void tick(Magik plugin) {
+        void tick() {
             angle += 0.1; // rotation speed
             radius = Math.max(0, radius - 0.05); // spiral inward
             Location loc = center.clone();
             loc.add(Math.cos(angle) * radius, heightOffset, Math.sin(angle) * radius);
-            display.getScheduler().run(plugin, task -> {
-                if (!display.isValid()) {
-                    return;
-                }
+            if (!display.isValid()) {
+                return;
+            }
 
-                display.teleport(loc);
+            display.teleport(loc);
 
-                if (radius < 0.1) {
-                    display.remove();
-                }
-            }, null);
+            if (radius < 0.1) {
+                display.remove();
+            }
         }
 
         boolean isDead() {
@@ -90,20 +88,21 @@ public class BlackHoleMagic extends Magic {
         int durationTicks = 10 * 20;
         final double[] radius = {2.0};
         double growthRate = 0.025;
+        final int[] ticks = {0};
 
         List<OrbitingBlock> orbitingBlocks = new ArrayList<>();
 
-        new BukkitRunnable() {
-            int ticks = 0;
-
-            @Override
-            public void run() {
-                if (ticks >= durationTicks) {
-                    orbitingBlocks.forEach(b ->
-                            b.display.getScheduler().run(plugin, task -> b.display.remove(), null));
-                    this.cancel();
-                    return;
-                }
+        Bukkit.getRegionScheduler().runAtFixedRate(plugin, center, task -> {
+            if (ticks[0] >= durationTicks) {
+                orbitingBlocks.forEach(b -> {
+                    if (b.display.isValid()) {
+                        b.display.remove();
+                    }
+                });
+                orbitingBlocks.clear();
+                task.cancel();
+                return;
+            }
 
                 // Spawn particles on outer shell only
                 double particleRadius = radius[0] + 0.5; // slightly outside orbiting blocks
@@ -154,14 +153,13 @@ public class BlackHoleMagic extends Magic {
 
                 // Tick orbiting blocks
                 orbitingBlocks.removeIf(ob -> {
-                    ob.tick(plugin);
+                    ob.tick();
                     return ob.isDead();
                 });
 
                 radius[0] += growthRate;
-                ticks++;
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
+                ticks[0]++;
+        }, 0L, 1L);
 
     }
 }
