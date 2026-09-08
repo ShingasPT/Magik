@@ -16,33 +16,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MagicMenu implements InventoryHolder {
+public class SpellBookMenu implements InventoryHolder {
 
     private final Inventory inventory;
     private final MagicManager manager;
-    private final MagicCategory category;
     private final Map<Integer, Magic> magicSlots = new HashMap<>();
-    public static final int BACK_SLOT = 49;
 
-    public MagicMenu(
+    public SpellBookMenu(
             MagicManager manager,
-            MagicCategory category,
-            Player player
+            Player player,
+            MagicCategory category
     ) {
         this.manager = manager;
-        this.category = category;
-
-        inventory = Bukkit.createInventory(
+        this.inventory = Bukkit.createInventory(
                 this,
-                54,
-                Mini.message(
-                        "<dark_purple>"
-                                + category.name()
-                                + " Magic"
-                )
+                27,
+                Mini.message(titleFor(category))
         );
 
-        initializeItems(player);
+        initializeItems(player, category);
     }
 
     @Override
@@ -54,39 +46,44 @@ public class MagicMenu implements InventoryHolder {
         player.openInventory(inventory);
     }
 
-    private void initializeItems(Player player) {
+    private void initializeItems(Player player, MagicCategory category) {
+        fillBackground();
 
         int slot = 0;
+        for (Magic magic : manager.getAllByCategory(category)) {
+            if (slot >= inventory.getSize()) {
+                break;
+            }
 
-        for (Magic magic :
-                manager.getByCategory(player, category)) {
+            boolean unlocked = manager.canUseMagic(player, magic);
             List<String> lore = new ArrayList<>(magic.getDescription());
             lore.add("");
             lore.add("<aqua>Cast Time: <yellow>" + formatTime(magic.getCastTimeMillis()));
             lore.add("<red>Cooldown: <yellow>" + formatTime(magic.getCooldownMillis()));
+            lore.add("");
+            lore.add(unlocked
+                    ? "<yellow>Click to select."
+                    : "<red>You have not unlocked this magic.");
 
             inventory.setItem(
                     slot,
                     new ItemBuilder(magic.getIcon())
-                            .name("<gold>" + magic.getName())
+                            .name((unlocked ? "<gold>" : "<dark_red>") + magic.getName())
                             .lore(lore)
                             .build()
             );
-
             magicSlots.put(slot, magic);
-
             slot++;
         }
+    }
 
-        inventory.setItem(
-                BACK_SLOT,
-                new ItemBuilder(Material.ARROW)
-                        .name("<red>Return")
-                        .lore(List.of(
-                                "<gray>Return to the categories menu"
-                        ))
-                        .build()
-        );
+    private void fillBackground() {
+        ItemBuilder filler = new ItemBuilder(Material.BLACK_STAINED_GLASS_PANE)
+                .name("<dark_gray>");
+
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            inventory.setItem(slot, filler.build());
+        }
     }
 
     private String formatTime(long milliseconds) {
@@ -94,16 +91,21 @@ public class MagicMenu implements InventoryHolder {
             return "Instant";
         }
 
-        return formatSeconds(milliseconds / 1000);
-    }
-
-    private String formatSeconds(long seconds) {
+        long seconds = milliseconds / 1000;
         if (seconds % 60 == 0) {
             long minutes = seconds / 60;
             return minutes + (minutes == 1 ? " minute" : " minutes");
         }
 
         return seconds + (seconds == 1 ? " second" : " seconds");
+    }
+
+    private String titleFor(MagicCategory category) {
+        return switch (category) {
+            case ATTACK -> "<red>Attack Magic";
+            case SUPPORT -> "<green>Support Magic";
+            case UTILITY -> "<aqua>Utility Magic";
+        };
     }
 
     public Magic getMagic(int slot) {

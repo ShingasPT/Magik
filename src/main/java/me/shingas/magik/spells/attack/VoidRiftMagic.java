@@ -19,7 +19,7 @@ public class VoidRiftMagic extends Magic {
 
     private static final int LIFETIME = 100;
     private static final double MAX_RADIUS = 2.0;
-    private static final double PULL_RADIUS = 7.0;
+    private static final double PULL_RADIUS = 12.0;
 
     public VoidRiftMagic() {
         super(

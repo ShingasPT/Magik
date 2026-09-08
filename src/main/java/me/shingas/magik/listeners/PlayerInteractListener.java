@@ -1,7 +1,8 @@
 package me.shingas.magik.listeners;
 
-
+import me.shingas.magik.gui.SpellBookMenu;
 import me.shingas.magik.magic.CastTrigger;
+import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.managers.MagicManager;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,10 +21,25 @@ public class PlayerInteractListener implements Listener {
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
 
+        Player player = event.getPlayer();
+        if (event.getAction().isRightClick()) {
+            MagicCategory category = magicManager.getBookCategory(event.getItem());
+            if (category != null) {
+                event.setCancelled(true);
+
+                if (!player.hasPermission("magik.wizard")) {
+                    player.sendMessage("You do not have the power to use this book.");
+                    return;
+                }
+
+                new SpellBookMenu(magicManager, player, category).open(player);
+                return;
+            }
+        }
+
         if (event.getHand() != EquipmentSlot.HAND)
             return;
 
-        Player player = event.getPlayer();
         if (event.getAction().isRightClick()) {
             magicManager.castHeldMagic(player, CastTrigger.RIGHT);
         } else if (event.getAction().isLeftClick()) {

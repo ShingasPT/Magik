@@ -12,6 +12,7 @@ public class MagicContext {
     private final StormManager stormManager;
     private final Player player;
     private final CastTrigger trigger;
+    private boolean castSuccessful = true;
 
     public MagicContext(Magik plugin,
                         MagicManager magicManager,
@@ -41,4 +42,12 @@ public class MagicContext {
     }
 
     public CastTrigger getTrigger() { return trigger; }
+
+    public void failCast() {
+        castSuccessful = false;
+    }
+
+    public boolean isCastSuccessful() {
+        return castSuccessful;
+    }
 }

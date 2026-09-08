@@ -42,6 +42,7 @@ public class OrbitalMagic extends Magic {
                     SILENCE_DURATION + 1;
 
     private final Map<UUID, Integer> drillDepth = new HashMap<>();
+    private final Map<UUID, Integer> orbitalTicks = new HashMap<>();
 
     public OrbitalMagic() {
         super(
@@ -70,24 +71,27 @@ public class OrbitalMagic extends Magic {
         if (targetBlock == null) return;
         Location target = targetBlock.getLocation().add(0.5, 0.5, 0.5); // center of the block
 
-        new BukkitRunnable() {
+        Bukkit.getRegionScheduler().runAtFixedRate(
+                plugin,
+                target,
+                task -> {
+                    int ticks = orbitalTicks.getOrDefault(
+                            player.getUniqueId(),
+                            0
+                    );
 
-            int ticks = 0;
+                    if (!player.isOnline()) {
+                        task.cancel();
+                        orbitalTicks.remove(player.getUniqueId());
+                        return;
+                    }
 
-            @Override
-            public void run() {
+                    drillDepth.put(player.getUniqueId(), 0);
 
-                if (!player.isOnline()) {
-                    cancel();
-                    return;
-                }
+                    OrbitalPhase phase = getPhase(ticks);
+                    int phaseTicks = getPhaseTicks(ticks);
 
-                drillDepth.put(player.getUniqueId(), 0);
-
-                OrbitalPhase phase = getPhase(ticks);
-                int phaseTicks = getPhaseTicks(ticks);
-
-                switch (phase) {
+                    switch (phase) {
 
                     case LASER -> {
                         drawTargetLaser(world, target, phaseTicks);
@@ -147,19 +151,20 @@ public class OrbitalMagic extends Magic {
                         beamDetonation(world, target, player);
                     }
 
-                    case FINISHED -> {
-                        drillDepth.remove(player.getUniqueId());
-                        cancel();
-                        return;
+                        case FINISHED -> {
+                            drillDepth.remove(player.getUniqueId());
+                            orbitalTicks.remove(player.getUniqueId());
+                            task.cancel();
+                            return;
+                        }
+
                     }
 
-                }
-
-                ticks++;
-
-            }
-
-        }.runTaskTimer(plugin, 0L, 1L);
+                    orbitalTicks.put(player.getUniqueId(), ticks + 1);
+                },
+                1L,
+                1L
+        );
 
     }
 
@@ -882,19 +887,24 @@ public class OrbitalMagic extends Magic {
                     (Math.random() - 0.5) * 1.4
             ));
 
-            new BukkitRunnable() {
-                @Override
-                public void run() {
+            falling.getScheduler().runAtFixedRate(plugin, task -> {
                     if (!falling.isValid()) {
-                        cancel();
+                        task.cancel();
                         return;
                     }
                     if (falling.isOnGround()) {
-                        falling.getScheduler().run(plugin, task -> falling.remove(), null);
-                        cancel();
+                        falling.remove();
+                        task.cancel();
                     }
-                }
-            }.runTaskTimer(plugin, 1L, 1L);
+                },
+                () -> {
+                    if (falling.isValid()) {
+                        falling.remove();
+                    }
+                },
+                1L,
+                1L
+            );
 
         }
 

@@ -1,17 +1,14 @@
 package me.shingas.magik.listeners;
 
-import me.shingas.magik.gui.CategoryMenu;
-import me.shingas.magik.gui.MagicMenu;
+import me.shingas.magik.gui.SpellBookMenu;
 import me.shingas.magik.magic.Magic;
-import me.shingas.magik.magic.MagicCategory;
 import me.shingas.magik.managers.MagicManager;
 import me.shingas.magik.utils.Mini;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.entity.Player;
 
 public class MenuListener implements Listener {
 
@@ -27,60 +24,16 @@ public class MenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player))
             return;
 
-        if (!(event.getInventory().getHolder() instanceof InventoryHolder holder))
+        if (!(event.getInventory().getHolder() instanceof SpellBookMenu menu))
             return;
 
-        if (holder instanceof CategoryMenu) {
-
-            handleCategoryClick(player, event);
-            event.setCancelled(true);
-
-        } else if (holder instanceof MagicMenu magicMenu) {
-
-            handleMagicClick(player, event, magicMenu);
-            event.setCancelled(true);
-
-        }
-    }
-
-    private void handleCategoryClick(
-            Player player,
-            InventoryClickEvent event
-    ) {
-
-        switch (event.getRawSlot()) {
-
-            case 11 ->
-                    new MagicMenu(
-                            manager,
-                            MagicCategory.ATTACK,
-                            player
-                    ).open(player);
-
-            case 13 ->
-                    new MagicMenu(
-                            manager,
-                            MagicCategory.SUPPORT,
-                            player
-                    ).open(player);
-
-            case 15 ->
-                    new MagicMenu(
-                            manager,
-                            MagicCategory.UTILITY,
-                            player
-                    ).open(player);
-        }
+        event.setCancelled(true);
+        handleMagicClick(player, event, menu);
     }
 
     private void handleMagicClick(Player player,
                                   InventoryClickEvent event,
-                                  MagicMenu menu) {
-
-        if (event.getRawSlot() == MagicMenu.BACK_SLOT) {
-            new CategoryMenu(manager).open(player);
-            return;
-        }
+                                  SpellBookMenu menu) {
 
         Magic magic =
                 menu.getMagic(event.getRawSlot());
@@ -101,5 +54,12 @@ public class MenuListener implements Listener {
         }
 
         manager.applyMagic(player, magic);
+    }
+
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (event.getInventory().getHolder() instanceof SpellBookMenu) {
+            event.setCancelled(true);
+        }
     }
 }

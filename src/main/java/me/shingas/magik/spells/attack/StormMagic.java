@@ -65,7 +65,7 @@ public class StormMagic extends Magic {
                 storm.registerLightning(strike, casterId);
             });
             ticks[0] += 10;
-        }, 0L, 10L);
+        }, 1L, 10L);
     }
 
 }

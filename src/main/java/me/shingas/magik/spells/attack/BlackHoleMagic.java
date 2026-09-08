@@ -159,7 +159,7 @@ public class BlackHoleMagic extends Magic {
 
                 radius[0] += growthRate;
                 ticks[0]++;
-        }, 0L, 1L);
+        }, 1L, 1L);
 
     }
 }

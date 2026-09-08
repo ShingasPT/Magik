@@ -31,7 +31,7 @@ public class MeteorMagic extends Magic {
                         "<gray>on impact."
                 ),
                 CastType.RIGHT_CLICK,
-                10000L
+                120000L
         );
     }
 
@@ -53,7 +53,7 @@ public class MeteorMagic extends Magic {
 
         // Spawn fireball
         Fireball meteor = world.spawn(start, Fireball.class);
-        meteor.setYield(6); // explosion power
+        meteor.setYield(4); // explosion power
         meteor.setIsIncendiary(true);
         meteor.setShooter(player);
 
@@ -66,7 +66,7 @@ public class MeteorMagic extends Magic {
         Bukkit.getRegionScheduler().runAtFixedRate(plugin, target, task -> {
             if (meteor.isDead()) {
                 Location impact = meteor.getLocation();
-                world.createExplosion(impact, 10F, true, true, null);
+                world.createExplosion(impact, 7F, true, true, null);
                 world.spawnParticle(Particle.EXPLOSION, impact, 1);
                 task.cancel();
                 return;
@@ -81,6 +81,6 @@ public class MeteorMagic extends Magic {
             world.spawnParticle(Particle.FLAME, meteor.getLocation(), 5, 0.5, 0.5, 0.5, 0);
             world.spawnParticle(Particle.LAVA, meteor.getLocation(), 3, 0.5, 0.5, 0.5, 0);
             ticks[0]++;
-        }, 0L, 1L);
+        }, 1L, 1L);
     }
 }

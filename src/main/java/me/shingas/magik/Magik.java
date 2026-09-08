@@ -1,7 +1,5 @@
 package me.shingas.magik;
 
-import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
-import me.shingas.magik.commands.MagicCommand;
 import me.shingas.magik.listeners.MenuListener;
 import me.shingas.magik.listeners.PlayerInteractListener;
 import me.shingas.magik.listeners.StormListener;
@@ -11,6 +9,10 @@ import me.shingas.magik.spells.attack.*;
 import me.shingas.magik.spells.attack.FireballMagic.FireballListener;
 import me.shingas.magik.spells.attack.FireballMagic.FireballMagic;
 import me.shingas.magik.spells.attack.OrbitalMagic.OrbitalMagic;
+import me.shingas.magik.spells.support.*;
+import me.shingas.magik.spells.utility.LightMagic;
+import me.shingas.magik.spells.utility.TeleportMagic;
+import me.shingas.magik.spells.utility.FeatherfallMagic;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Magik extends JavaPlugin {
@@ -32,15 +34,19 @@ public final class Magik extends JavaPlugin {
         magicManager.register(new OrbitalMagic());
         magicManager.register(new StormMagic());
         magicManager.register(new VoidRiftMagic());
+        magicManager.register(new BlessMagic());
+        magicManager.register(new AidMagic());
+        magicManager.register(new BlindnessMagic());
+        magicManager.register(new SwiftwindMagic());
+        magicManager.register(new BarrierMagic());
+        magicManager.register(new TeleportMagic());
+        magicManager.register(new LightMagic());
+        magicManager.register(new FeatherfallMagic());
 
         getServer().getPluginManager().registerEvents(
                 new FireballListener(this),
                 this
         );
-
-        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-            event.registrar().register("magik", new MagicCommand(magicManager));
-        });
 
         getServer().getPluginManager().registerEvents(
                 new StormListener(stormManager),

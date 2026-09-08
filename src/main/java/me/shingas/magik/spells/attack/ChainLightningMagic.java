@@ -22,9 +22,12 @@ import java.util.UUID;
 public class ChainLightningMagic extends Magic {
 
     private static final int MAX_DISTANCE = 50;
-    private static final int MAX_JUMPS = 6;
-    private static final double CHAIN_RADIUS = 8.0;
-    private static final double START_DAMAGE = 10.0;
+    // Total number of entities the bolt can hit (first target + chained jumps)
+    private static final int MAX_JUMPS = 5;
+    private static final double CHAIN_RADIUS = 12.0;
+    private static final double START_DAMAGE = 16.0;
+    // Damage retained per jump - higher means the chain stays dangerous for longer
+    private static final double CHAIN_DAMAGE_FALLOFF = 0.85;
     private Magik plugin;
 
     public ChainLightningMagic() {
@@ -39,7 +42,7 @@ public class ChainLightningMagic extends Magic {
                         "<gray>between nearby enemies."
                 ),
                 CastType.RIGHT_CLICK,
-                20000L
+                30000L
         );
     }
 
@@ -56,24 +59,38 @@ public class ChainLightningMagic extends Magic {
 
         World world = player.getWorld();
 
-        // Real lightning only on the first target
-        LightningStrike lightningStrike =
-                world.strikeLightning(first.getLocation());
+        // The initial strike + damage must run on the region thread that
+        // owns "first", otherwise entity-add side effects of damage()
+        // (e.g. XP orbs on death) crash with
+        // "Cannot add entity off-main thread" on regionized servers
+        // (Folia / ShreddedPaper).
+        first.getScheduler().run(plugin, scheduledTask -> {
 
-        context.getStormManager().registerLightning(
-                lightningStrike,
-                player
-        );
+            LightningStrike lightningStrike =
+                    world.strikeLightning(first.getLocation());
 
-        strike(first.getLocation());
-        first.damage(START_DAMAGE, player);
+            context.getStormManager().registerLightning(
+                    lightningStrike,
+                    player
+            );
+
+            strike(first.getLocation());
+            first.damage(START_DAMAGE, player);
+
+            startChain(player, first);
+
+        }, null);
+    }
+
+    private void startChain(Player player, LivingEntity first) {
 
         new BukkitRunnable() {
 
             private LivingEntity current = first;
+            private Location currentLocation = first.getEyeLocation().clone();
             private final Set<UUID> hit = new HashSet<>();
 
-            private double damage = START_DAMAGE * 0.8;
+            private double damage = START_DAMAGE * CHAIN_DAMAGE_FALLOFF;
             private int jumps = 1;
             private boolean animating = false;
 
@@ -89,9 +106,7 @@ public class ChainLightningMagic extends Magic {
                     return;
                 }
 
-                if (current == null
-                        || !current.isValid()
-                        || current.isDead()) {
+                if (current == null) {
 
                     cancel();
                     return;
@@ -106,7 +121,7 @@ public class ChainLightningMagic extends Magic {
                 }
 
                 LivingEntity next =
-                        findNextTarget(current, hit, player);
+                        findNextTarget(currentLocation, hit, player);
 
                 if (next == null) {
                     cancel();
@@ -117,17 +132,27 @@ public class ChainLightningMagic extends Magic {
                 hit.add(next.getUniqueId());
                 animating = true;
 
-                Location from = current.getEyeLocation();
+                Location from = currentLocation;
                 Location to = next.getEyeLocation();
 
                 drawLightning(from, to, () -> {
-                    if (next.isValid() && !next.isDead()) {
-                        next.damage(damage, player);
-                        strike(next.getLocation());
-                    }
+
+                    LivingEntity target = next;
+                    double dmg = damage;
+
+                    // Same reasoning as the initial strike: damage must be
+                    // applied on the region thread that owns the target
+                    // entity, not on this timer's (global) thread.
+                    target.getScheduler().run(plugin, scheduledTask -> {
+                        if (target.isValid() && !target.isDead()) {
+                            target.damage(dmg, player);
+                            strike(target.getLocation());
+                        }
+                    }, null);
 
                     current = next;
-                    damage *= 0.8;
+                    currentLocation = next.getEyeLocation().clone();
+                    damage *= CHAIN_DAMAGE_FALLOFF;
                     jumps++;
                     animating = false;
                 });
@@ -164,7 +189,7 @@ public class ChainLightningMagic extends Magic {
      * Finds the closest entity that hasn't already been hit.
      */
     private LivingEntity findNextTarget(
-            LivingEntity current,
+            Location currentLocation,
             Set<UUID> hit,
             Player caster
     ) {
@@ -172,7 +197,13 @@ public class ChainLightningMagic extends Magic {
         LivingEntity nearest = null;
         double nearestDistance = Double.MAX_VALUE;
 
-        for (Entity entity : current.getNearbyEntities(
+        World world = currentLocation.getWorld();
+        if (world == null) {
+            return null;
+        }
+
+        for (Entity entity : world.getNearbyEntities(
+                currentLocation,
                 CHAIN_RADIUS,
                 CHAIN_RADIUS,
                 CHAIN_RADIUS
@@ -188,7 +219,7 @@ public class ChainLightningMagic extends Magic {
                 continue;
 
             double distance = living.getLocation()
-                    .distanceSquared(current.getLocation());
+                    .distanceSquared(currentLocation);
 
             if (distance < nearestDistance) {
                 nearestDistance = distance;

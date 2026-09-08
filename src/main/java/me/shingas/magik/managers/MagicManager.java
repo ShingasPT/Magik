@@ -15,28 +15,24 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MagicManager {
 
     private final Magik plugin;
     private final StormManager stormManager;
 
-    private final Map<String, Magic> magics = new LinkedHashMap<>();
-    private final Map<UUID, Map<String, Long>> cooldowns = new HashMap<>();
+    private final Map<String, Magic> magics = new ConcurrentHashMap<>();
+    private final Map<UUID, Map<String, Long>> cooldowns = new ConcurrentHashMap<>();
     private final NamespacedKey magicKey;
 
     private static final String WAND_NEXO_ID = "wizard_wand";
-
-    private static final Set<String> WIZARD_DEFAULT_MAGICS = Set.of(
-            "fireball",
-            "icespear"
-    );
+    private static final String ATTACK_BOOK_NEXO_ID = "wizard_attack_book";
+    private static final String SUPPORT_BOOK_NEXO_ID = "wizard_support_book";
+    private static final String UTILITY_BOOK_NEXO_ID = "wizard_utility_book";
 
     public MagicManager(Magik plugin, StormManager stormManager) {
         this.plugin = plugin;
@@ -52,22 +48,36 @@ public class MagicManager {
         return magics.get(id);
     }
 
-    public void applyMagic(Player player, Magic magic) {
+    public boolean isWizardBook(ItemStack item) {
+        return getBookCategory(item) != null;
+    }
 
-        ItemStack item = player.getInventory().getItemInMainHand();
-
-        if (item.getType().isAir()) {
-            player.closeInventory();
-            player.sendMessage(Mini.message(
-                    "<red>You must be holding your magic wand."
-            ));
-            return;
+    public MagicCategory getBookCategory(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return null;
         }
 
-        if (!isWizardWand(item)) {
+        String nexoId = NexoItems.idFromItem(item);
+        if (nexoId == null) {
+            return null;
+        }
+
+        return switch (nexoId) {
+            case ATTACK_BOOK_NEXO_ID -> MagicCategory.ATTACK;
+            case SUPPORT_BOOK_NEXO_ID -> MagicCategory.SUPPORT;
+            case UTILITY_BOOK_NEXO_ID -> MagicCategory.UTILITY;
+            default -> null;
+        };
+    }
+
+    public void applyMagic(Player player, Magic magic) {
+
+        ItemStack item = findWizardWand(player);
+
+        if (item == null) {
             player.closeInventory();
             player.sendMessage(Mini.message(
-                    "<red>You can only apply magic to a Wizard Wand."
+                    "<red>You must have a magic wand in your inventory."
             ));
             return;
         }
@@ -125,14 +135,17 @@ public class MagicManager {
             }
         }
 
-        long cooldownSeconds =
-                magic.getCooldownMillis() / 1000;
+        lore.add(
+                Mini.message(
+                        "<aqua>Cast Time: <yellow>"
+                                + formatTime(magic.getCastTimeMillis())
+                )
+        );
 
         lore.add(
                 Mini.message(
                         "<red>Cooldown: <yellow>"
-                                + cooldownSeconds
-                                + " Seconds"
+                                + formatTime(magic.getCooldownMillis())
                 )
         );
 
@@ -157,6 +170,26 @@ public class MagicManager {
         );
     }
 
+    private ItemStack findWizardWand(Player player) {
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        if (isWizardWand(mainHand)) {
+            return mainHand;
+        }
+
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+        if (isWizardWand(offHand)) {
+            return offHand;
+        }
+
+        for (ItemStack item : player.getInventory().getStorageContents()) {
+            if (isWizardWand(item)) {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
     private boolean isWizardWand(ItemStack item) {
 
         if (item == null || item.getType().isAir())
@@ -176,22 +209,23 @@ public class MagicManager {
             return 0;
 
         Map<String, Long> playerCooldowns = cooldowns.get(player.getUniqueId());
-
         if (playerCooldowns == null)
             return 0;
 
         Long expiresAt = playerCooldowns.get(magic.getId());
-
         if (expiresAt == null)
             return 0;
 
         long remaining = expiresAt - System.currentTimeMillis();
 
         if (remaining <= 0) {
-            playerCooldowns.remove(magic.getId());
-            if (playerCooldowns.isEmpty()) {
-                cooldowns.remove(player.getUniqueId());
-            }
+            cooldowns.computeIfPresent(
+                    player.getUniqueId(),
+                    (id, activeCooldowns) -> {
+                        activeCooldowns.remove(magic.getId(), expiresAt);
+                        return activeCooldowns.isEmpty() ? null : activeCooldowns;
+                    }
+            );
             return 0;
         }
 
@@ -212,7 +246,7 @@ public class MagicManager {
             return;
 
         cooldowns
-                .computeIfAbsent(player.getUniqueId(), id -> new HashMap<>())
+                .computeIfAbsent(player.getUniqueId(), id -> new ConcurrentHashMap<>())
                 .put(magic.getId(), System.currentTimeMillis() + magic.getCooldownMillis());
     }
 
@@ -228,12 +262,6 @@ public class MagicManager {
             return false;
         }
 
-        // Every Wizard automatically knows these.
-        if (WIZARD_DEFAULT_MAGICS.contains(magic.getId())) {
-            return true;
-        }
-
-        // Everything else has to be learned/unlocked.
         return player.hasPermission(
                 "magik.spell." + magic.getId()
         );
@@ -243,6 +271,12 @@ public class MagicManager {
         return magics.values().stream()
                 .filter(magic -> magic.getCategory() == category)
                 .filter(magic -> canUseMagic(player, magic))
+                .toList();
+    }
+
+    public List<Magic> getAllByCategory(MagicCategory category) {
+        return magics.values().stream()
+                .filter(magic -> magic.getCategory() == category)
                 .toList();
     }
 
@@ -290,18 +324,36 @@ public class MagicManager {
             return;
         }
 
-        magic.cast(new MagicContext(
+        MagicContext context = new MagicContext(
                 plugin,
                 this,
                 stormManager,
                 player,
                 trigger
-        ));
+        );
 
-        applyCooldown(player, magic);
+        magic.cast(context);
+
+        if (context.isCastSuccessful()) {
+            applyCooldown(player, magic);
+        }
     }
 
     public Magik getPlugin() {
         return plugin;
+    }
+
+    private String formatTime(long milliseconds) {
+        if (milliseconds <= 0) {
+            return "Instant";
+        }
+
+        long seconds = milliseconds / 1000;
+        if (seconds % 60 == 0) {
+            long minutes = seconds / 60;
+            return minutes + (minutes == 1 ? " minute" : " minutes");
+        }
+
+        return seconds + (seconds == 1 ? " second" : " seconds");
     }
 }
